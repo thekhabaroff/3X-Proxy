@@ -51,7 +51,7 @@ cp bin/3proxy /usr/bin/
 chown proxy3:proxy3 -R /etc/3proxy /var/log/3proxy /usr/bin/3proxy
 chmod +x /usr/bin/3proxy
 
-# Создание конфигурационного файла
+# Создание конфигурационного файла (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 echo "Создание конфигурации..."
 cat > /etc/3proxy/3proxy.cfg <<EOF
 pidfile /var/run/3proxy.pid
@@ -68,11 +68,8 @@ auth strong
 users ${PROXY_USER}:CL:${PROXY_PASS}
 allow ${PROXY_USER}
 
-external ${SERVER_IP}
-internal ${SERVER_IP}
-
-proxy -p${HTTP_PORT}
-socks -p${SOCKS_PORT}
+proxy -p${HTTP_PORT} -i${SERVER_IP} -e${SERVER_IP}
+socks -p${SOCKS_PORT} -i${SERVER_IP} -e${SERVER_IP}
 EOF
 
 # Создание systemd службы
@@ -87,6 +84,7 @@ Type=simple
 ExecStart=/usr/bin/3proxy /etc/3proxy/3proxy.cfg
 ExecStop=/bin/killall 3proxy
 Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
@@ -100,18 +98,22 @@ systemctl start 3proxy
 
 # Проверка статуса
 sleep 2
-systemctl status 3proxy --no-pager
-
-# Вывод информации
-echo ""
-echo "=== Установка завершена! ==="
-echo ""
-echo "HTTP прокси: ${PROXY_USER}:${PROXY_PASS}@${SERVER_IP}:${HTTP_PORT}"
-echo "SOCKS прокси: ${PROXY_USER}:${PROXY_PASS}@${SERVER_IP}:${SOCKS_PORT}"
-echo ""
-echo "Проверка работы:"
-echo "curl -x ${PROXY_USER}:${PROXY_PASS}@${SERVER_IP}:${HTTP_PORT} https://ifconfig.me"
-echo ""
-echo "Конфигурация: /etc/3proxy/3proxy.cfg"
-echo "Логи: /var/log/3proxy/3proxy.log"
-echo "Управление: systemctl {start|stop|restart|status} 3proxy"
+if systemctl is-active --quiet 3proxy; then
+    echo ""
+    echo "=== Установка завершена успешно! ==="
+    echo ""
+    echo "HTTP прокси: ${PROXY_USER}:${PROXY_PASS}@${SERVER_IP}:${HTTP_PORT}"
+    echo "SOCKS прокси: ${PROXY_USER}:${PROXY_PASS}@${SERVER_IP}:${SOCKS_PORT}"
+    echo ""
+    echo "Проверка работы:"
+    echo "curl -x ${PROXY_USER}:${PROXY_PASS}@${SERVER_IP}:${HTTP_PORT} https://ifconfig.me"
+    echo ""
+    echo "Конфигурация: /etc/3proxy/3proxy.cfg"
+    echo "Логи: /var/log/3proxy/3proxy.log"
+    echo "Управление: systemctl {start|stop|restart|status} 3proxy"
+else
+    echo ""
+    echo "=== ОШИБКА: служба не запустилась ==="
+    echo "Проверьте логи: journalctl -u 3proxy -n 50"
+    exit 1
+fi
